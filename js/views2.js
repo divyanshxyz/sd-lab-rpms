@@ -107,7 +107,7 @@ function viewMilestone(id, u){
   if(!m){ appEl().innerHTML = page('Not found','', emptyState('Milestone not found.')); return; }
   const proj = findProject(m.projectId);
   const isOwner = proj.pi === u.id;
-  if(!isOwner && !['APPROVER','ADMIN','AUDITOR','COORDINATOR'].includes(u.role)){
+  if(!canViewProject(u, proj)){
     appEl().innerHTML = page('Forbidden','', alertBox('error','Access denied (BR-024).')); return;
   }
   const deliverables = table(['Deliverable','Due date','Status'], m.deliverables.map(d=>[
@@ -375,7 +375,7 @@ function viewNotifications(_, u){
 /* ---------- Projects browse (UC-007/008, FR-013/014) ---------- */
 const projFilter = { q:'', status:'', domain:'' };
 function viewProjects(_, u){
-  const domains = [...new Set(DB.projects.map(p=>p.domain))];
+  const domains = [...new Set(visibleProjects(u).map(p=>p.domain))];
   appEl().innerHTML = page('Projects','Browse, search and filter research projects (FR-013, FR-014)', `
     <section class="card">
       <div class="filters">
@@ -385,15 +385,15 @@ function viewProjects(_, u){
         <select id="pd"><option value="">All domains</option>
           ${domains.map(d=>`<option ${projFilter.domain===d?'selected':''}>${esc(d)}</option>`).join('')}</select>
       </div>
-      <div id="ptab">${projectsTable()}</div>
+      <div id="ptab">${projectsTable(u)}</div>
     </section>`);
-  document.getElementById('pq').oninput = e => { projFilter.q = e.target.value; document.getElementById('ptab').innerHTML = projectsTable(); };
-  document.getElementById('ps').onchange = e => { projFilter.status = e.target.value; document.getElementById('ptab').innerHTML = projectsTable(); };
-  document.getElementById('pd').onchange = e => { projFilter.domain = e.target.value; document.getElementById('ptab').innerHTML = projectsTable(); };
+  document.getElementById('pq').oninput = e => { projFilter.q = e.target.value; document.getElementById('ptab').innerHTML = projectsTable(u); };
+  document.getElementById('ps').onchange = e => { projFilter.status = e.target.value; document.getElementById('ptab').innerHTML = projectsTable(u); };
+  document.getElementById('pd').onchange = e => { projFilter.domain = e.target.value; document.getElementById('ptab').innerHTML = projectsTable(u); };
 }
-function projectsTable(){
+function projectsTable(u){
   const q = projFilter.q.toLowerCase();
-  const rows = DB.projects.filter(p =>
+  const rows = visibleProjects(u).filter(p =>
     (!projFilter.status || p.status === projFilter.status) &&
     (!projFilter.domain || p.domain === projFilter.domain) &&
     (!q || (p.title+' '+userById(p.pi).name+' '+p.domain+' '+p.id).toLowerCase().includes(q))
@@ -409,6 +409,11 @@ function projectsTable(){
 function viewProject(id, u){
   const proj = findProject(id);
   if(!proj){ appEl().innerHTML = page('Not found','', emptyState('Project not found.')); return; }
+  if(!canViewProject(u, proj)){
+    appEl().innerHTML = page('Forbidden','', alertBox('error',
+      'Access denied: you can only view projects you own or are a member of (BR-024, NFR-007).'));
+    return;
+  }
   const canSeeFunding = u.role !== 'APPROVER' || proj.pi === u.id;   // NFR-023
   const ms = DB.milestones.filter(m=>m.projectId===proj.id);
   const docs = DB.documents.filter(d=>d.projectId===proj.id);

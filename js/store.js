@@ -46,6 +46,17 @@ function findMilestone(id){ return DB.milestones.find(m => m.id === id); }
 function userById(id){ return DB.users.find(u => u.id === id) || { name:'Unknown', role:'?' }; }
 function usersByRole(role){ return DB.users.filter(u => u.role === role && u.active); }
 
+/* ---------- project access (BR-024, NFR-007, NFR-022) ---------- */
+// A PI may only see projects they lead or are assigned to; all other roles are
+// authorised reviewers/coordinators/administrators with institution-wide scope.
+function canViewProject(user, proj){
+  if(!user || !proj) return false;
+  if(user.role !== 'PI') return true;
+  const members = proj.investigators || [];
+  return proj.pi === user.id || members.some(m => (m.userId || m.id || m) === user.id);
+}
+function visibleProjects(user){ return DB.projects.filter(p => canViewProject(user, p)); }
+
 /* ---------- seed data (matches the wireframe scenario) ---------- */
 function seedDB(){
   const t = todayISO();

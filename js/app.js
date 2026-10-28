@@ -46,7 +46,7 @@ function renderTopbar(u){
     <a class="brand" href="#/dashboard"><span class="logo-mark">R</span> RPMS <span class="brand-sub">— Research Project Management System</span></a>
     <nav class="nav">${nav}</nav>
     <div class="top-right">
-      <a class="bell" href="#/notifications" title="Notifications">🔔${unread?`<span class="badge">${unread}</span>`:''}</a>
+      <a class="bell" href="#/notifications" title="Notifications" aria-label="Notifications"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>${unread?`<span class="badge">${unread}</span>`:''}</a>
       <span class="userchip">${esc(u.name)} <span class="role">(${ROLE_LABEL[u.role]})</span></span>
       <button class="btn btn-light btn-sm" id="btn-logout">Logout</button>
     </div></div>`;
