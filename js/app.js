@@ -15,6 +15,8 @@ const NAV = {
 const ROUTES = [
   { re:/^#\/login$/,               fn:(m,u)=>viewLogin(),                              pub:true },
   { re:/^#\/register$/,            fn:()=>viewRegister(),                              pub:true },
+  { re:/^#\/forgot-password$/,     fn:()=>viewForgotPassword(),                        pub:true },
+  { re:/^#\/reset\/([A-Za-z0-9_-]+)$/, fn:(token)=>viewResetPassword(token),            pub:true },
   { re:/^#\/dashboard$/,           fn:viewDashboard },
   { re:/^#\/projects$/,            fn:viewProjects },
   { re:/^#\/project\/([\w-]+)$/,   fn:viewProject },

@@ -123,6 +123,13 @@ table.tbl{width:100%;border-collapse:collapse;background:#fff;font-size:13.5px}
 .demo-creds{margin-top:16px;font-size:12.5px;color:var(--muted);line-height:2}
 .demo-creds button{margin:2px 4px 2px 0;padding:3px 10px;font-size:12px;border-radius:999px;border:1px solid var(--border);background:#f6f8fb;cursor:pointer}
 .demo-creds button:hover{background:var(--blue-bg)}
+.label-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.quiet-link{font-size:12.5px;color:var(--navy)}
+.mail-preview{margin-top:12px;border:1px dashed #b9c6d6;border-radius:8px;background:#f7f9fb;padding:12px 14px}
+.mail-head{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.mail-meta{font-size:12.5px;color:#4c5f73;background:#fff;border:1px solid var(--border);border-radius:6px;padding:7px 9px}
+.mail-link{word-break:break-all;font-size:12.5px}
+.mail-preview .btn{margin-top:2px}
 
 /* ---------- Notifications ---------- */
 ul.notif{list-style:none;margin:0;padding:0}

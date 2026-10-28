@@ -38,6 +38,23 @@ function fakeHash(s) {
   return "sha-sim-" + h.toString(36) + "-" + s.length;
 }
 
+/* Cryptographically random, URL-safe reset token. The raw token is only ever
+   placed in the simulated email; the store keeps its digest (NFR-005). */
+function newResetToken() {
+  try {
+    const bytes = new Uint8Array(24);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  } catch (e) {
+    let s = "";
+    while (s.length < 48) s += Math.random().toString(36).slice(2);
+    return s.slice(0, 48);
+  }
+}
+
+const RESET_REQUEST_MESSAGE =
+  "If an account exists for this email, a password reset link has been sent. The link expires in 30 minutes and can be used once.";
+
 const VALID_ROLES = ["PI", "COORDINATOR", "APPROVER", "ADMIN", "FUNDING", "AUDITOR"];
 
 /* ---------- UC-001 / FR-001…FR-004, NFR-008 — authentication ---------- */
@@ -141,6 +158,111 @@ const Auth = {
   },
   logout() {
     localStorage.removeItem(SESSION_KEY);
+  },
+
+  /* ---------- Self-service password reset (NFR-005, NFR-024, BR-020) ----------
+     The SRS does not define a reset use case; this follows its security rules:
+     the response never reveals whether an email is registered (same pattern as
+     FR-002), links are single-use and expire, deactivated accounts are refused,
+     and both request and completion are written to the append-only audit log. */
+  requestPasswordReset(email) {
+    const normalized = String(email || "")
+      .trim()
+      .toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized))
+      return err("UNPROCESSABLE", "Enter a valid email address."); // NFR-010
+    const user = DB.users.find((u) => u.email.toLowerCase() === normalized);
+    // BR-020: deactivated users cannot reset, but we still return the same
+    // generic response so the account status is not disclosed.
+    if (!user || !user.active)
+      return { ok: true, message: RESET_REQUEST_MESSAGE };
+
+    // Supersede any outstanding links so only the newest one works.
+    DB.passwordResets.forEach((r) => {
+      if (r.userId === user.id && !r.usedAt) {
+        r.usedAt = nowISO();
+        r.revoked = true;
+      }
+    });
+    const token = newResetToken();
+    const expiresAt = Date.now() + PASSWORD_RESET_TTL_MS;
+    DB.passwordResets.unshift({
+      id: nextId("rst"),
+      userId: user.id,
+      tokenHash: fakeHash(token),
+      requestedAt: nowISO(),
+      expiresAt,
+      usedAt: null,
+      revoked: false,
+    });
+    audit(
+      user.id,
+      "PASSWORD_RESET_REQUESTED",
+      user.id,
+      "Single-use password reset link issued",
+    ); // NFR-024
+    saveDB();
+    // demoToken is shown in the simulated email preview only — never in a real system.
+    return {
+      ok: true,
+      message: RESET_REQUEST_MESSAGE,
+      demoToken: token,
+      expiresAt,
+      user: { id: user.id, email: user.email },
+    };
+  },
+
+  checkResetToken(token) {
+    const reset = DB.passwordResets.find(
+      (r) => r.tokenHash === fakeHash(String(token || "")) && !r.usedAt,
+    );
+    if (!reset)
+      return err(
+        "INVALID_TOKEN",
+        "This password reset link is invalid or has already been used.",
+      );
+    if (Date.now() > reset.expiresAt)
+      return err(
+        "INVALID_TOKEN",
+        "This password reset link has expired. Request a new one.",
+      );
+    const user = DB.users.find((u) => u.id === reset.userId);
+    if (!user || !user.active)
+      return err("INVALID_TOKEN", "This password reset link is no longer valid."); // BR-020
+    return { ok: true, user, reset };
+  },
+
+  resetPassword(token, newPassword) {
+    const password = String(newPassword || "");
+    const checked = Auth.checkResetToken(token);
+    if (!checked.ok) return checked; // expired/reused/unknown token
+    if (password.length < 6)
+      return err("UNPROCESSABLE", "Password must be at least 6 characters long.");
+    const user = checked.user;
+    user.passwordHash = fakeHash(password); // NFR-005
+    checked.reset.usedAt = nowISO();
+    // Revoke every other outstanding link for this account.
+    DB.passwordResets.forEach((r) => {
+      if (r.userId === user.id && !r.usedAt) {
+        r.usedAt = nowISO();
+        r.revoked = true;
+      }
+    });
+    // Invalidate the affected user's existing session (if this browser holds it).
+    try {
+      const s = JSON.parse(localStorage.getItem(SESSION_KEY));
+      if (s && s.userId === user.id) localStorage.removeItem(SESSION_KEY);
+    } catch (e) {
+      /* ignore malformed session */
+    }
+    audit(
+      user.id,
+      "PASSWORD_RESET",
+      user.id,
+      "Password changed via self-service reset",
+    ); // NFR-024
+    saveDB();
+    return { ok: true, user };
   },
 };
 

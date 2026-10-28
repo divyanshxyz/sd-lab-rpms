@@ -8,6 +8,7 @@
 const DB_KEY = 'rpms_db_v1';
 const SESSION_KEY = 'rpms_session_v1';
 const SESSION_TTL_MS = 30 * 60 * 1000; // NFR-008: 30-minute sliding session
+const PASSWORD_RESET_TTL_MS = 30 * 60 * 1000; // single-use password reset link lifetime
 const DEMO_PASSWORD = 'demo123';
 
 /* ---------- small helpers ---------- */
@@ -181,6 +182,7 @@ function seedDB(){
       { id:'NOTF-5015', recipient:'USR-205', type:'review',   message:'New proposal PROP-2026-043 (Soil Moisture Sensing Network) submitted for review.', created:'2026-09-12T09:16', read:false },
       { id:'NOTF-5016', recipient:'USR-101', type:'approval', message:'Proposal PROP-2026-031 (Smart Grid Load Analytics) was approved. Project PRJ-2026-015 activated.', created:'2026-09-02T12:05', read:true },
     ],
+    passwordResets:[],
     auditLog:[
       { id:'LOG-8001', actor:'USR-101', action:'PROPOSAL_SUBMITTED',           target:'PROP-2026-031', time:'2026-08-20T10:00', remarks:'Proposal submitted for committee review' },
       { id:'LOG-8002', actor:'USR-205', action:'PROPOSAL_APPROVED',            target:'PROP-2026-031', time:'2026-09-02T12:00', remarks:'Approved with funding confirmation' },
@@ -188,7 +190,7 @@ function seedDB(){
       { id:'LOG-8004', actor:'USR-103', action:'FUNDING_UTILIZATION_RECORDED', target:'PRJ-2026-015',  time:'2026-10-24T17:00', remarks:'Manpower: ₹8,40,000 — RA stipends (Sep–Oct)' },
       { id:'LOG-8005', actor:'USR-102', action:'PROPOSAL_SUBMITTED',           target:'PROP-2026-044', time:'2026-09-20T11:05', remarks:'Proposal submitted for committee review' },
     ],
-    counters:{ prop:48, prj:16, ms:304, dlv:34, doc:205, notf:5017, log:8006, usr:501 },
+    counters:{ prop:48, prj:16, ms:304, dlv:34, doc:205, notf:5017, log:8006, usr:501, rst:1 },
   };
 }
 
@@ -200,8 +202,9 @@ function loadDB(){
     if(raw){
       const db = JSON.parse(raw);
       if(db && db.meta){
-        // merge in counters added by newer versions (e.g. usr for self-registration)
-        db.counters = Object.assign({ usr:501 }, db.counters);
+        // merge in counters/collections added by newer versions
+        db.counters = Object.assign({ usr:501, rst:1 }, db.counters);
+        if(!Array.isArray(db.passwordResets)) db.passwordResets = [];
         return db;
       }
     }
@@ -226,5 +229,6 @@ function nextId(kind){
     case 'notf': return `NOTF-${c.notf++}`;
     case 'log':  return `LOG-${c.log++}`;
     case 'usr':  return `USR-${c.usr++}`;
+    case 'rst':  return `RST-${c.rst++}`;
   }
 }

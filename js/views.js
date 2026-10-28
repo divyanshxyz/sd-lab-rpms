@@ -4,6 +4,7 @@
    ========================================================================== */
 
 let pendingEditorError = null;   // carries a failed-submit result into a re-rendered editor
+let pendingLoginNotice = null;   // one-shot success message shown after a password reset
 const FIELD_IDS = {
   'Project title':'f-title','Abstract':'f-abstract','Objectives':'f-objectives','Methodology':'f-methodology',
   'Expected outcomes':'f-outcomes','Budget (INR)':'f-budget','Proposed start date':'f-start','Expected end date':'f-end',
@@ -15,17 +16,22 @@ function viewLogin(opts){
   const cur = Auth.current();
   if(cur && !cur.expired){ location.hash = '#/dashboard'; return; }
   const expiredMsg = opts.expired ? alertBox('info','Your session has expired. Please sign in again. (M-03)') : '';
+  const resetMsg = pendingLoginNotice ? alertBox('success', esc(pendingLoginNotice)) : '';
+  pendingLoginNotice = null;
   appEl().innerHTML = `
   <div class="login-wrap">
     <div class="login-card">
       <h1>Sign in</h1>
       <p class="sub">Sign in with institutional credentials</p>
       ${expiredMsg}
+      ${resetMsg}
       <div id="login-msg"></div>
       <form id="login-form" autocomplete="off">
         <div class="field"><label for="l-email">Email</label>
           <input type="email" id="l-email" placeholder="name@lnmiit.ac.in" required></div>
-        <div class="field"><label for="l-pass">Password</label>
+        <div class="field">
+          <div class="label-row"><label for="l-pass">Password</label>
+            <a class="quiet-link" href="#/forgot-password">Forgot password?</a></div>
           <input type="password" id="l-pass" placeholder="••••••••" required></div>
         <button class="btn btn-primary btn-block" type="submit">Login</button>
       </form>
@@ -55,6 +61,96 @@ function viewLogin(opts){
       toast('Welcome, ' + res.user.name);
       location.hash = '#/dashboard';
     }
+  };
+}
+
+/* ---------- Forgot password (self-service reset, NFR-005/024, BR-020) ---------- */
+function viewForgotPassword(){
+  appEl().innerHTML = `
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Forgot password</h1>
+      <p class="sub">Enter the email address registered with RPMS. We will send a single-use reset link that expires in 30 minutes.</p>
+      <div id="fp-msg"></div>
+      <form id="fp-form" autocomplete="off" novalidate>
+        <div class="field"><label for="fp-email">Email</label>
+          <input type="email" id="fp-email" placeholder="name@lnmiit.ac.in" required></div>
+        <button class="btn btn-primary btn-block" type="submit">Send reset link</button>
+      </form>
+      <p class="demo-creds"><a href="#/login">Back to sign in</a></p>
+    </div>
+  </div>`;
+  document.getElementById('fp-form').onsubmit = ev => {
+    ev.preventDefault();
+    const msg = document.getElementById('fp-msg');
+    const res = Auth.requestPasswordReset(document.getElementById('fp-email').value);
+    if(!res.ok){ msg.innerHTML = alertBox('error', esc(res.message)); return; }
+    let preview = '';
+    if(res.demoToken){
+      const link = '#/reset/' + encodeURIComponent(res.demoToken);
+      preview = `
+      <div class="mail-preview">
+        <div class="mail-head"><b>Simulated email</b>
+          <span class="quiet">no mail server is connected to this prototype</span></div>
+        <p class="mail-meta"><b>To:</b> ${esc(res.user.email)}<br>
+          <b>Subject:</b> Reset your RPMS password</p>
+        <p>Use the link below to choose a new password. It is valid for 30 minutes and can be used once.</p>
+        <p><a class="mail-link" href="${esc(link)}" id="fp-reset-link">${esc(link)}</a></p>
+        <a class="btn btn-primary btn-sm" href="${esc(link)}">Open reset link</a>
+        <p class="quiet">Prototype note: the email is displayed here because real delivery is out of scope. Only a digest of the token is stored (NFR-005).</p>
+      </div>`;
+    }
+    msg.innerHTML = alertBox('success', esc(res.message)) + preview;
+  };
+}
+
+function viewResetPassword(token){
+  const check = Auth.checkResetToken(token);
+  if(!check.ok){
+    appEl().innerHTML = `
+    <div class="login-wrap">
+      <div class="login-card">
+        <h1>Reset link unavailable</h1>
+        ${alertBox('error', esc(check.message))}
+        <p class="demo-creds"><a href="#/forgot-password">Request a new link</a> · <a href="#/login">Back to sign in</a></p>
+      </div>
+    </div>`;
+    return;
+  }
+  appEl().innerHTML = `
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Choose a new password</h1>
+      <p class="sub">Resetting the password for <b>${esc(check.user.email)}</b></p>
+      <div id="rp-msg"></div>
+      <form id="rp-form" autocomplete="off" novalidate>
+        <div class="field"><label for="rp-pass">New password <span class="req">*</span></label>
+          <input type="password" id="rp-pass" autocomplete="new-password" placeholder="At least 6 characters"></div>
+        <div class="field"><label for="rp-pass2">Confirm new password <span class="req">*</span></label>
+          <input type="password" id="rp-pass2" autocomplete="new-password"></div>
+        <button class="btn btn-primary btn-block" type="submit">Reset password</button>
+      </form>
+      <p class="demo-creds"><a href="#/login">Back to sign in</a></p>
+    </div>
+  </div>`;
+  document.getElementById('rp-form').onsubmit = ev => {
+    ev.preventDefault();
+    const msg = document.getElementById('rp-msg');
+    const pw = document.getElementById('rp-pass').value;
+    const pw2 = document.getElementById('rp-pass2').value;
+    if(pw.length < 6){
+      msg.innerHTML = alertBox('error','Password must be at least 6 characters long.');
+      return;
+    }
+    if(pw !== pw2){
+      msg.innerHTML = alertBox('error','Passwords do not match.');
+      return;
+    }
+    const res = Auth.resetPassword(token, pw);
+    if(!res.ok){ msg.innerHTML = alertBox('error', esc(res.message)); return; }
+    pendingLoginNotice = 'Password reset successfully. Sign in with your new password.';
+    toast('Password updated. Please sign in.');
+    location.hash = '#/login';
   };
 }
 

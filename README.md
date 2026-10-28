@@ -3,9 +3,9 @@
 A working front-end prototype of the **Research Project Management System** specified in the Team T081 SRS
 (CS314 Software Development Laboratory, LNMIIT Jaipur). It implements the three detailed use cases from the
 design documents — **UC-004 Submit Proposal, UC-005 Approve/Reject Proposal, UC-011 Submit Milestone
-Completion** — plus role-based access for all six user classes, funding management, notifications, and an
-append-only audit log. The UI follows the Assignment 7 wireframes (navy header, cards, status pills) with a
-few usability improvements.
+Completion** — plus role-based access for all six user classes, funding management, notifications, self-service
+password reset, and an append-only audit log. The UI follows the Assignment 7 wireframes (navy header, cards,
+status pills) with a few usability improvements.
 
 ## Run it
 
@@ -66,12 +66,18 @@ The login page has one-click buttons that pre-fill each persona.
    action (logins, submissions, decisions, funding entries) is recorded append-only (BR-023, NFR-024/025).
 7. **Session expiry (NFR-008):** sessions expire after 30 minutes of inactivity; the login page shows the
    M-03 “session expired” message.
+8. **Forgot password:** on the login page click **Forgot password?** → enter a demo email (e.g.
+   `priya.sharma@lnmiit.ac.in`) → the prototype displays the simulated email containing a single-use reset
+   link (30-minute expiry) → choose a new password (≥ 6 characters) → sign in with it. Unknown or
+   deactivated accounts receive the same generic response, so account existence is not disclosed. Both
+   steps are written to the Audit Log (`PASSWORD_RESET_REQUESTED`, `PASSWORD_RESET`).
 
 ## Requirements coverage (highlights)
 
 | Area | Where |
 |------|-------|
 | FR-001…FR-004 auth, RBAC, role change | `js/services.js` (`Auth`, `AdminService`), per-route role guards |
+| Self-service password reset (FR-001/FR-002 pattern, NFR-005/024, BR-020) | `Auth.requestPasswordReset`, `Auth.checkResetToken`, `Auth.resetPassword`, forgot/reset views |
 | FR-005…FR-012 proposal lifecycle incl. draft, withdraw | `ProposalService`, PI dashboard + editor |
 | FR-013…FR-015 project listing/search/filter/details | *Projects* page, project detail |
 | FR-016…FR-021 milestones & deliverables | `MilestoneService`, milestone views |
@@ -93,5 +99,8 @@ The login page has one-click buttons that pre-fill each persona.
   accounts are institutionally provisioned (Section 8) and roles are assigned only by administrators
   (FR-004, BR-019). The prototype keeps PI self-signup as a documented convenience; every other role is
   created by an admin via Users → Create User (UC-002).
+- **Password reset email is simulated.** There is no mail server, so the *Forgot password* flow displays the
+  one-time link on screen as a simulated email. Only a simulated digest of the token is stored; links expire
+  after 30 minutes, work once, and are superseded by any newer request.
 - Concurrent-edit conflicts (UC-005 alt flow c) are detected server-side in a real system; here the same
   state checks exist but concurrency is simulated single-user.
