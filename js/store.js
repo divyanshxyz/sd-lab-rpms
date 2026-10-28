@@ -177,7 +177,7 @@ function seedDB(){
       { id:'LOG-8004', actor:'USR-103', action:'FUNDING_UTILIZATION_RECORDED', target:'PRJ-2026-015',  time:'2026-10-24T17:00', remarks:'Manpower: ₹8,40,000 — RA stipends (Sep–Oct)' },
       { id:'LOG-8005', actor:'USR-102', action:'PROPOSAL_SUBMITTED',           target:'PROP-2026-044', time:'2026-09-20T11:05', remarks:'Proposal submitted for committee review' },
     ],
-    counters:{ prop:48, prj:16, ms:304, dlv:34, doc:205, notf:5017, log:8006 },
+    counters:{ prop:48, prj:16, ms:304, dlv:34, doc:205, notf:5017, log:8006, usr:501 },
   };
 }
 
@@ -186,7 +186,14 @@ function saveDB(){ localStorage.setItem(DB_KEY, JSON.stringify(DB)); }
 function loadDB(){
   try{
     const raw = localStorage.getItem(DB_KEY);
-    if(raw){ const db = JSON.parse(raw); if(db && db.meta) return db; }
+    if(raw){
+      const db = JSON.parse(raw);
+      if(db && db.meta){
+        // merge in counters added by newer versions (e.g. usr for self-registration)
+        db.counters = Object.assign({ usr:501 }, db.counters);
+        return db;
+      }
+    }
   }catch(e){ /* fall through to reseed */ }
   const db = seedDB(); localStorage.setItem(DB_KEY, JSON.stringify(db)); return db;
 }
@@ -207,5 +214,6 @@ function nextId(kind){
     case 'doc':  return `DOC-${c.doc++}`;
     case 'notf': return `NOTF-${c.notf++}`;
     case 'log':  return `LOG-${c.log++}`;
+    case 'usr':  return `USR-${c.usr++}`;
   }
 }

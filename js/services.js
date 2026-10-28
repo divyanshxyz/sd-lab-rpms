@@ -31,6 +31,15 @@ function notify(recipientId, type, message) {
   });
 }
 
+/* Simulated password digest (NFR-005): deterministic obfuscation — NOT real crypto, prototype only. */
+function fakeHash(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = (((h << 5) + h) ^ s.charCodeAt(i)) >>> 0;
+  return "sha-sim-" + h.toString(36) + "-" + s.length;
+}
+
+const VALID_ROLES = ["PI", "COORDINATOR", "APPROVER", "ADMIN", "FUNDING", "AUDITOR"];
+
 /* ---------- UC-001 / FR-001…FR-004, NFR-008 — authentication ---------- */
 const Auth = {
   login(email, password) {
@@ -41,7 +50,12 @@ const Auth = {
           .trim()
           .toLowerCase(),
     );
-    if (!user || password !== DEMO_PASSWORD)
+    const passOk =
+      user &&
+      (user.passwordHash
+        ? user.passwordHash === fakeHash(password) // self-registered account
+        : password === DEMO_PASSWORD); // seeded demo account
+    if (!user || !passOk)
       return err("UNAUTHORIZED", "Invalid email or password."); // FR-002: never reveal which field failed
     if (!user.active)
       return err(
@@ -56,6 +70,56 @@ const Auth = {
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     audit(user.id, "USER_LOGIN", user.id, "Signed in");
+    saveDB();
+    return { ok: true, user };
+  },
+
+  /* Self-registration (prototype): creates an active Principal Investigator account
+     and signs the user in. Per the SRS (FR-004, BR-019, UC-002), roles other than PI
+     are assigned only by the System Administrator. */
+  register(data) {
+    const name = String(data.name || "").trim();
+    const email = String(data.email || "")
+      .trim()
+      .toLowerCase();
+    const dept = String(data.dept || "").trim();
+    const password = String(data.password || "");
+    if (!name) return err("UNPROCESSABLE", "Enter your full name.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      return err("UNPROCESSABLE", "Enter a valid email address.");
+    if (DB.users.some((u) => u.email.toLowerCase() === email))
+      return err(
+        "CONFLICT",
+        "An account with this email already exists. Try signing in instead.",
+      );
+    if (password.length < 6)
+      return err("UNPROCESSABLE", "Password must be at least 6 characters long.");
+    const user = {
+      id: nextId("usr"),
+      name,
+      email,
+      role: "PI",
+      dept: dept || "—",
+      active: true,
+      passwordHash: fakeHash(password),
+      registeredOn: todayISO(),
+    };
+    DB.users.push(user);
+    audit(user.id, "USER_REGISTERED", user.id, "Self-registered as Principal Investigator");
+    usersByRole("ADMIN").forEach((a) =>
+      notify(
+        a.id,
+        "system",
+        `New user registered: ${user.name} (${email}) joined as Principal Investigator.`,
+      ),
+    ); // FR-031
+    const session = {
+      token: "demo-" + Math.random().toString(36).slice(2),
+      userId: user.id,
+      issuedAt: nowISO(),
+      expiresAt: Date.now() + SESSION_TTL_MS,
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     saveDB();
     return { ok: true, user };
   },
@@ -593,6 +657,50 @@ const FundingService = {
 
 /* ---------- Administration (UC-002, FR-004, BR-019/020) ---------- */
 const AdminService = {
+  createUser(actor, data) {
+    // UC-002, FR-004, BR-019: only administrators may provision accounts with roles
+    if (actor.role !== "ADMIN")
+      return err(
+        "FORBIDDEN",
+        "Only administrators can create user accounts and assign roles.",
+      );
+    const name = String(data.name || "").trim();
+    const email = String(data.email || "")
+      .trim()
+      .toLowerCase();
+    const dept = String(data.dept || "").trim();
+    const role = data.role;
+    const password = String(data.password || "");
+    if (!name) return err("UNPROCESSABLE", "Enter the user's full name.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      return err("UNPROCESSABLE", "Enter a valid email address.");
+    if (DB.users.some((u) => u.email.toLowerCase() === email))
+      return err("CONFLICT", "An account with this email already exists.");
+    if (!VALID_ROLES.includes(role))
+      return err("UNPROCESSABLE", "Choose a valid role.");
+    if (password.length < 6)
+      return err("UNPROCESSABLE", "Password must be at least 6 characters long.");
+    const user = {
+      id: nextId("usr"),
+      name,
+      email,
+      role,
+      dept: dept || "—",
+      active: true,
+      passwordHash: fakeHash(password),
+      registeredOn: todayISO(),
+    };
+    DB.users.push(user);
+    audit(actor.id, "USER_CREATED", user.id, `Account created with role ${role}`);
+    notify(
+      user.id,
+      "system",
+      `Welcome to RPMS! Your ${role} account was created by the system administrator.`,
+    );
+    saveDB();
+    return { ok: true, user };
+  },
+
   setRole(actor, userId, role) {
     if (actor.role !== "ADMIN")
       return err("FORBIDDEN", "Only administrators can change user roles."); // BR-019

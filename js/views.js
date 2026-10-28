@@ -29,6 +29,7 @@ function viewLogin(opts){
           <input type="password" id="l-pass" placeholder="••••••••" required></div>
         <button class="btn btn-primary btn-block" type="submit">Login</button>
       </form>
+      <p class="demo-creds" style="margin-top:12px">New user? <a href="#/register">Create an account</a></p>
       <div class="demo-creds">Demo accounts (password <code>demo123</code>):
         <br>${[['PI','priya.sharma@lnmiit.ac.in'],['Approver','rajesh.gupta@lnmiit.ac.in'],
                ['Coordinator','kavita.rao@lnmiit.ac.in'],['Funding agency','dst.rep@serb.gov.in'],
@@ -286,5 +287,59 @@ function renderProposalReadOnly(p, u, isOwner){
     const res = ProposalService.withdraw(p.id, u);
     if(res.ok){ toast('Proposal withdrawn. You can edit and resubmit it.'); viewProposal(p.id, u); }
     else toast(res.message, 'error');
+  };
+}
+
+/* ---------- Registration (new users) ---------- */
+function viewRegister(){
+  const cur = Auth.current();
+  if(cur && !cur.expired){ location.hash = '#/dashboard'; return; }
+  appEl().innerHTML = `
+  <div class="login-wrap" style="max-width:580px">
+    <div class="login-card">
+      <h1>Create your account</h1>
+      <p class="sub">Register with your institutional email to start using RPMS</p>
+      <div id="reg-msg"></div>
+      <form id="reg-form" autocomplete="off" novalidate>
+        <div class="grid2">
+          <div class="field"><label for="r-name">Full name <span class="req">*</span></label>
+            <input type="text" id="r-name" placeholder="e.g. Dr. Rakesh Verma"></div>
+          <div class="field"><label for="r-dept">Department</label>
+            <input type="text" id="r-dept" placeholder="e.g. CSE"></div>
+        </div>
+        <div class="field"><label for="r-email">Institutional email <span class="req">*</span></label>
+          <input type="email" id="r-email" placeholder="name@lnmiit.ac.in"></div>
+        <div class="field"><label>Role you will join as</label>
+          <div class="ro">Principal Investigator (PI)</div>
+          <p class="quiet">Per the SRS, roles are assigned only by the System Administrator (FR-004, BR-019, UC-002).
+          New accounts join as Principal Investigators; coordinator, approver, funding-agency and auditor accounts
+          are provisioned by an administrator from the Users page.</p>
+        </div>
+        <div class="grid2">
+          <div class="field"><label for="r-pass">Password <span class="req">*</span></label>
+            <input type="password" id="r-pass" placeholder="At least 6 characters"></div>
+          <div class="field"><label for="r-pass2">Confirm password <span class="req">*</span></label>
+            <input type="password" id="r-pass2"></div>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">Create Account</button>
+      </form>
+      <p class="demo-creds">Already registered? <a href="#/login">Sign in</a></p>
+    </div>
+  </div>`;
+  document.getElementById('reg-form').onsubmit = ev => {
+    ev.preventDefault();
+    const val = id => document.getElementById(id).value;
+    const msg = document.getElementById('reg-msg');
+    if(val('r-pass') !== val('r-pass2')){
+      msg.innerHTML = alertBox('error','Passwords do not match.');
+      return;
+    }
+    const res = Auth.register({ name:val('r-name'), email:val('r-email'), dept:val('r-dept'), password:val('r-pass') });
+    if(!res.ok){
+      msg.innerHTML = alertBox('error', esc(res.message));
+      return;
+    }
+    toast('Account created. Welcome, ' + res.user.name + '!');
+    location.hash = '#/dashboard';
   };
 }

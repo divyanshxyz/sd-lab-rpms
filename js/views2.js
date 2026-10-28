@@ -299,6 +299,23 @@ function fundingCardExtra(proj, u){
 function viewUsers(_, u){
   if(!requireRole(u,['ADMIN'],'User administration')) return;
   appEl().innerHTML = page('Manage Users & Roles','FR-004: only administrators may assign or modify roles (BR-019)', `
+    <section class="form-card"><h2 style="margin-top:0">Create User (UC-002)</h2>
+      <div class="grid2">
+        <div class="field"><label for="nu-name">Full name <span class="req">*</span></label>
+          <input type="text" id="nu-name" placeholder="e.g. Prof. N. Agarwal"></div>
+        <div class="field"><label for="nu-dept">Department</label>
+          <input type="text" id="nu-dept" placeholder="e.g. Research Committee"></div>
+        <div class="field"><label for="nu-email">Email <span class="req">*</span></label>
+          <input type="email" id="nu-email" placeholder="name@lnmiit.ac.in"></div>
+        <div class="field"><label for="nu-role">Role <span class="req">*</span></label>
+          <select id="nu-role">${Object.keys(ROLE_LABEL).map(r=>`<option value="${r}" ${r==='PI'?'selected':''}>${ROLE_LABEL[r]}</option>`).join('')}</select></div>
+        <div class="field"><label for="nu-pass">Initial password <span class="req">*</span></label>
+          <input type="password" id="nu-pass" placeholder="At least 6 characters"></div>
+      </div>
+      <div class="row-actions"><button class="btn btn-primary" id="nu-save">Create User</button></div>
+      <p class="quiet">Provisioning other roles lives here because the SRS reserves role assignment for
+      administrators (BR-019) — self-registration always joins as a Principal Investigator.</p>
+    </section>
     <section class="card">
       ${table(['Name','Email','Department','Role','Status','Action'], DB.users.map(x=>[
         esc(x.name), esc(x.email), esc(x.dept),
@@ -310,6 +327,14 @@ function viewUsers(_, u){
       ]))}
       <p class="quiet">Deactivated users cannot log in (BR-020); their historical records are retained (NFR-014).</p>
     </section>`);
+  document.getElementById('nu-save').onclick = () => {
+    const val = id => document.getElementById(id).value;
+    const res = AdminService.createUser(u, { name:val('nu-name'), email:val('nu-email'),
+      dept:val('nu-dept'), role:val('nu-role'), password:val('nu-pass') });
+    if(!res.ok){ toast(res.message,'error'); return; }
+    toast('User created with role ' + val('nu-role') + '.');
+    viewUsers(null, u);
+  };
   document.querySelectorAll('.role-sel').forEach(sel => sel.onchange = () => {
     const res = AdminService.setRole(u, sel.dataset.user, sel.value);
     toast(res.ok ? 'Role updated (BR-019) and written to the audit log.' : res.message, res.ok?'success':'error');

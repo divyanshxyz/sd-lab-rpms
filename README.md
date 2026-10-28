@@ -40,6 +40,12 @@ The login page has one-click buttons that pre-fill each persona.
 
 ## Suggested demo walkthrough
 
+0. **Registration:** click **“Create an account”** on the login page → register with any email not already
+   in the demo list (e.g. `rakesh.verma@lnmiit.ac.in`) and a password (≥ 6 chars) → the account joins as a
+   **Principal Investigator** and you are signed straight into the PI dashboard. Duplicate emails are
+   rejected; admins receive a notification and a `USER_REGISTERED` audit entry is written. Seeded demo
+   accounts keep working with `demo123`. **Roles are admin-assigned per FR-004/BR-019**: use Admin →
+   Users → *Create User* (UC-002) to provision coordinators, approvers, funding-agency reps or auditors.
 1. **UC-004 (PI):** sign in as Dr. Sharma → the draft *PROP-2026-042 “AI-based Crop Disease Detection”*
    is intentionally incomplete → **Submit** shows the M-07 “Missing fields” banner with inline field errors.
    Fill Methodology, Budget and the dates → **Submit Proposal** → confirmation page (status *Under Review*,
@@ -81,6 +87,11 @@ The login page has one-click buttons that pre-fill each persona.
 
 - There is **no real server** — the browser store simulates the RPMS database; refresh-safe but local.
 - Uploaded **file payloads are not persisted**; only metadata (name, size, version) is recorded.
-- All demo accounts share the password `demo123`; passwords are not hashed (no real credentials involved).
+- All demo accounts share the password `demo123`; passwords are **not cryptographically hashed** — registered
+  accounts store a simulated digest only (NFR-005 is modelled, not implemented).
+- **Self-registration always joins as Principal Investigator.** The SRS has no self-service registration —
+  accounts are institutionally provisioned (Section 8) and roles are assigned only by administrators
+  (FR-004, BR-019). The prototype keeps PI self-signup as a documented convenience; every other role is
+  created by an admin via Users → Create User (UC-002).
 - Concurrent-edit conflicts (UC-005 alt flow c) are detected server-side in a real system; here the same
   state checks exist but concurrency is simulated single-user.
